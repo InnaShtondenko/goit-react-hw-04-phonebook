@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ThemeProvider } from 'styled-components'; 
 import { Notify } from 'notiflix/build/notiflix-notify-aio';
 import { theme } from './utils/Theme.styled';
@@ -8,37 +8,11 @@ import { ContactList } from './ContactList/ContactList';
 import { Filter } from './Filter/Filter';
 import { nanoid } from 'nanoid';
 
-export class App extends Component {
-  state = {
-    contacts: [
-      // {
-      //   id: 'id-1',
-      //   name: 'Rosie Simpson',
-      //   number: '459-12-56'
-      // },
-      // {
-      //   id: 'id-2',
-      //   name: 'Hermione Kline',
-      //   number: '443-89-12'
-      // },
-      // {
-      //   id: 'id-3',
-      //   name: 'Eden Clements',
-      //   number: '645-17-79'
-      // },
-      // {
-      //   id: 'id-4',
-      //   name: 'Annie Copeland',
-      //   number: '227-91-26'
-      // },
-    ],
-    filter: '',
-  };
+const LS_KEY = 'contacts';
 
-  LS_KEY = 'contacts';
-
-  componentDidMount() {
-    let readFromLSContacts = null;
+export function App() {
+  const [contacts, setContacts] = useState(() => {
+    let readFromLSContacts = [];
 
     try {
       readFromLSContacts = JSON.parse(localStorage.getItem(this.LS_KEY));
@@ -48,79 +22,59 @@ export class App extends Component {
       );
     }
 
-    if (readFromLSContacts) this.setState({ contacts: readFromLSContacts });
-  }
+    return readFromLSContacts;
+  });
 
-  componentDidUpdate(prevProps, prevState) {
-    let { contacts } = this.state;
-
-    contacts !== prevState.contacts &&
-      localStorage.setItem(this.LS_KEY, JSON.stringify(contacts));
-  }
-
-  onContactAdd = ({ name, number }) => {
-    if (this.hasContactWithName(name)) {
-      Notify.warning("Can't add already existing contact");
-      return;
-    }
-
-    this.setState(prevState => {
-      const normName = name.trim();
-      const updatedContacts = [
-        ...prevState.contacts,
-        { name: normName, number, id: nanoid() },
-      ];
-
-      return {
-        contacts: updatedContacts,
-      };
-    });
-  };
-
-  onRemoveContact = contactIdToRemove => {
-    this.setState(prevState => {
-      const updatedContacts = prevState.contacts.filter(
-        ({ id }) => id !== contactIdToRemove
-      );
-
-      return {
-        contacts: updatedContacts,
-      };
-    });
-  };
-
-  onContactsFiltering = filterValue => {
-    this.setState({ filter: filterValue });
-  };
-
-  getFilteredContacts = filterString => {
-    const { contacts } = this.state;
+  const [filterString, setFilter] = useState('');
+  const filteredContacts = useMemo(() => {
     const normalizedFilter = filterString.toLowerCase().trim();
+
+    if (!normalizedFilter) {
+      return [];
+    }
 
     return contacts.filter(({ name }) =>
       name.toLowerCase().includes(normalizedFilter)
     );
+  }, [contacts, filterString]);
+
+  useEffect(() => {
+    localStorage.setItem(LS_KEY, JSON.stringify(contacts));
+  }, [contacts]);
+
+  function onContactAdd ({ name, number }) {
+    if (hasContactWithName(name)) {
+      Notify.warning("Can't add already existing contact");
+      return;
+    }
+
+    setContacts(prevState => {
+      const normName = name.trim();
+      const updatedContacts = [
+        ...prevState,
+        { name: normName, number, id: nanoid() },
+      ];
+
+      return updatedContacts;
+    });
   };
 
-  hasContactWithName = searchName => {
-    const searchNameNormalized = searchName.trim().toLowerCase();
-
-    return this.state.contacts.some(
-      ({ name }) => name.toLowerCase() === searchNameNormalized
+  function onRemoveContact(contactIdToRemove) {
+    setContacts(prevState =>
+      prevState.filter
+        (({ id }) => id !== contactIdToRemove)
     );
   };
 
-  render() {
-    const {
-      onContactAdd,
-      onContactsFiltering,
-      onRemoveContact,
-      getFilteredContacts,
-      state: { contacts, filter },
-    } = this;
+  function hasContactWithName(searchName) {
+    if (!contacts) return;
+    const searchNameNormalized = searchName.trim().toLowerCase();
 
-    const filteredContacts = filter ? getFilteredContacts(filter) : contacts;
-
+    return contacts.some
+      (({ name }) => name.toLowerCase() === searchNameNormalized
+    );
+  };
+  
     return (
       <ThemeProvider theme={theme}>
         <Box
@@ -143,9 +97,9 @@ export class App extends Component {
               color="textColorSecondary"
             >
               <h2>Contacts</h2>
-              <Filter value={filter} onInputCallback={onContactsFiltering} />
+              <Filter value={filterString} onInputCallback={setFilter} />
               <ContactList
-                contacts={filteredContacts}
+                contacts={filterString ? filteredContacts : contacts}
                 onContactRemoveCallback={onRemoveContact}
               />
             </Box>
@@ -154,4 +108,3 @@ export class App extends Component {
       </ThemeProvider>
     );
   }
-}
